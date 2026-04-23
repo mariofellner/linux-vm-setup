@@ -1,109 +1,86 @@
-# ubuntu-vm-setup
+# linux-vm-setup
 
-Initial-Setup-Script für eine frische **Ubuntu LTS**-VM in **VMware Workstation** hinter einem Corporate-Proxy.
+Initial-Setup-Script für eine frische **Linux-VM** in **VMware Workstation** hinter einem Corporate-Proxy – funktioniert auf Ubuntu, Rocky Linux und Fedora in Desktop- **und** Server-Varianten.
 
-**Unterstützte Varianten:** Desktop und Server (werden automatisch erkannt).
-**Getestet mit:** Ubuntu 22.04, 24.04 und 26.04 LTS.
+## Unterstützte Distributionen
+
+| Distribution | Versionen | Desktop | Server |
+|---|---|---|---|
+| Ubuntu LTS | 22.04 / 24.04 / 26.04 | ✅ | ✅ |
+| Rocky Linux | 9.x / 10.x | ✅ | ✅ |
+| Fedora | 42 / 43 / 44 | ✅ | ✅ |
+
+Andere Debian- oder RHEL-Derivate (Debian, AlmaLinux, Oracle Linux, CentOS Stream) funktionieren mit sehr hoher Wahrscheinlichkeit auch – sie werden über `ID_LIKE` erkannt. Das Script warnt bei nicht-getesteten Versionen, bricht aber nicht ab.
 
 ## Was macht das Script?
 
 - Konfiguriert HTTP/HTTPS-Proxy für:
   - Login-Shells (`/etc/profile.d/99-proxy.sh`)
   - System-weit (`/etc/environment`)
-  - APT (`/etc/apt/apt.conf.d/95proxy`)
+  - **Paketmanager** – distro-abhängig:
+    - Debian-Familie: `/etc/apt/apt.conf.d/95proxy`
+    - RHEL-Familie: `/etc/dnf/dnf.conf` (`proxy=`, `proxy_username=`, `proxy_password=`)
   - wget (`/etc/wgetrc`)
   - curl (`/root/.curlrc`)
   - snap (falls installiert)
 - Installiert **`open-vm-tools`** für saubere VMware-Integration.
-  - **Desktop-Variante** zusätzlich **`open-vm-tools-desktop`** (Copy-Paste, Ordner-Shares, Mouse-Grab, Shutdown aus dem Host, dynamisches Display-Resizing).
-  - **Server-Variante** ohne `-desktop`-Paket (keine GUI-Abhängigkeiten).
+  - Desktop-Variante zusätzlich **`open-vm-tools-desktop`** (Copy-Paste, Ordner-Shares, Mouse-Grab, Shutdown aus dem Host, dynamisches Display-Resizing).
+  - Server-Variante ohne `-desktop`-Paket.
 - Installiert und aktiviert **`openssh-server`** für Remote-Zugriff.
-  - Aktiviert **`ssh.socket` UND `ssh.service`** (Ubuntu 24.04 nutzt Socket-Activation).
-- Öffnet Port 22 in `ufw`, falls UFW aktiv ist.
+  - Ubuntu 24.04+: aktiviert `ssh.service` **und** `ssh.socket` (Socket-Activation).
+  - Ubuntu 22.04 / Rocky / Fedora: aktiviert klassisch `ssh.service` bzw. `sshd.service`.
+- Öffnet Port 22 in der jeweiligen Firewall:
+  - Debian-Familie: **ufw** (nur wenn aktiv)
+  - RHEL-Familie: **firewalld** (nur wenn aktiv) – `firewall-cmd --permanent --add-service=ssh`
 - Führt am Ende automatische Self-Tests aus:
-  - ssh.service **oder** ssh.socket aktiv
+  - SSH-Unit aktiv
   - Port 22 lauscht
-  - echter SSH-Banner-Handshake gegen `127.0.0.1:22`
-  - `PasswordAuthentication`-Status (nur Info)
   - open-vm-tools läuft
-  - `apt update` geht über den Proxy (mit `Error-Mode=any`)
+  - Paketmanager-Update geht durch den Proxy
 
 ## Voraussetzungen
 
-- Ubuntu 22.04, 24.04 oder 26.04 LTS (Desktop **oder** Server; frisch installiert)
+- Frische Installation einer der oben genannten Distros
 - sudo-fähiger Benutzer
 - Erreichbarer HTTP/HTTPS-Proxy
 
-## Desktop oder Server? (Autodetect)
-
-Das Script erkennt die Variante automatisch:
-
-1. `systemctl get-default` → `graphical.target` = Desktop, sonst Server
-2. Alternativ: ist `ubuntu-desktop` oder `ubuntu-desktop-minimal` installiert? → Desktop
-
-Falls die Erkennung falsch liegt oder du sie überschreiben willst:
-
-```bash
-sudo ./setup-ubuntu-vm.sh --server      # erzwinge Server-Variante
-sudo ./setup-ubuntu-vm.sh --desktop     # erzwinge Desktop-Variante
-```
-
-Der einzige Unterschied: auf **Desktop** wird zusätzlich `open-vm-tools-desktop`
-installiert (GUI-Integration), auf **Server** nicht (keine X11/GUI-Abhängigkeiten).
-
 ## Script holen und ausführbar machen
 
-Je nachdem, wie du das Script auf die VM bekommst, fehlt ggf. das Execute-Bit.
-Bei **ZIP-Download von GitHub** (grüner "Code"-Button → "Download ZIP")
-gehen Unix-Dateirechte immer verloren – das Script wird nach dem Entpacken
-nicht direkt startbar sein. Typische Fehlermeldung:
-
-```
-sudo: ./setup-ubuntu-vm.sh: command not found
-```
+Bei **ZIP-Download von GitHub** gehen Unix-Dateirechte verloren. Typische Fehlermeldung: `sudo: ./setup-linux-vm.sh: command not found`.
 
 ### Variante A: Git clone (empfohlen)
 
-Beim Klonen via `git` bleiben die Dateirechte inkl. Execute-Bit erhalten:
-
 ```bash
-# Einmalig apt + git über den Proxy bereitstellen (falls git fehlt):
+# Ubuntu/Debian
 sudo apt update && sudo apt install -y git
+# Rocky/Fedora
+sudo dnf install -y git
 
-git clone https://github.com/mariofellner/ubuntu-vm-setup.git
-cd ubuntu-vm-setup
-sudo ./setup-ubuntu-vm.sh
+git clone https://github.com/mariofellner/linux-vm-setup.git
+cd linux-vm-setup
+sudo ./setup-linux-vm.sh
 ```
 
 ### Variante B: ZIP-Download – Execute-Bit nachsetzen
 
 ```bash
-cd ~/Downloads/ubuntu-vm-setup-main     # oder wo du entpackt hast
-chmod +x setup-ubuntu-vm.sh
-sudo ./setup-ubuntu-vm.sh
+cd ~/Downloads/linux-vm-setup-main
+chmod +x setup-linux-vm.sh
+sudo ./setup-linux-vm.sh
 ```
 
 ### Variante C: Ohne Execute-Bit – direkt mit bash starten
 
-Funktioniert immer, auch ohne `chmod`:
-
 ```bash
-sudo bash setup-ubuntu-vm.sh
+sudo bash setup-linux-vm.sh
 ```
 
 ### Windows-Zeilenendings?
 
-Falls das Script über Windows/OneDrive/Teams auf die VM kam und beim Start
-folgender Fehler erscheint:
-
-```
-/usr/bin/env: 'bash\r': No such file or directory
-```
-
-dann sind CRLF-Line-Endings schuld. Einmalig beheben mit:
+Falls beim Start `/usr/bin/env: 'bash\r': No such file or directory` erscheint:
 
 ```bash
-sed -i 's/\r$//' setup-ubuntu-vm.sh
+sed -i 's/\r$//' setup-linux-vm.sh
 ```
 
 ## Verwendung
@@ -111,19 +88,19 @@ sed -i 's/\r$//' setup-ubuntu-vm.sh
 ### Interaktiv (fragt nach Host und Port)
 
 ```bash
-sudo ./setup-ubuntu-vm.sh
+sudo ./setup-linux-vm.sh
 ```
 
 ### Mit Parametern
 
 ```bash
-sudo ./setup-ubuntu-vm.sh --host proxy.example.com --port 8080
+sudo ./setup-linux-vm.sh --host proxy.example.com --port 8080
 ```
 
 ### Mit Proxy-Auth
 
 ```bash
-sudo ./setup-ubuntu-vm.sh \
+sudo ./setup-linux-vm.sh \
   --host proxy.example.com --port 8080 \
   --user mario --pass 'GeheimesPasswort!' \
   --yes
@@ -133,13 +110,23 @@ sudo ./setup-ubuntu-vm.sh \
 
 ```bash
 sudo PROXY_HOST=proxy.example.com PROXY_PORT=8080 ASSUME_YES=1 \
-  ./setup-ubuntu-vm.sh
+  ./setup-linux-vm.sh
 ```
 
 ### Ohne Proxy (Direktzugriff)
 
 ```bash
-sudo ./setup-ubuntu-vm.sh --skip-proxy
+sudo ./setup-linux-vm.sh --skip-proxy
+```
+
+### Distro-/Variant-Override
+
+Autodetect funktioniert normalerweise. Falls nötig, manuell:
+
+```bash
+sudo ./setup-linux-vm.sh --server
+sudo ./setup-linux-vm.sh --desktop
+sudo DISTRO_FAMILY=rhel ./setup-linux-vm.sh    # erzwinge RHEL-Pfad
 ```
 
 ## Optionen
@@ -157,13 +144,31 @@ sudo ./setup-ubuntu-vm.sh --skip-proxy
 | `-y`, `--yes` | Alle Rückfragen mit Ja beantworten |
 | `-h`, `--help` | Hilfe anzeigen |
 
+## Distro-spezifische Besonderheiten
+
+### Rocky Linux / Fedora (RHEL-Familie)
+
+- **SSH-Service** heißt `sshd` (nicht `ssh`). Keine Socket-Activation.
+- **Firewall** ist `firewalld`. SSH-Service ist standardmäßig schon offen – das Script stellt sicher, dass es bleibt:
+  ```
+  firewall-cmd --permanent --add-service=ssh
+  firewall-cmd --reload
+  ```
+- **SELinux** ist enforcing. Für die Standard-Operationen (SSH, vmtoolsd) gibt es passende Policies – es sind keine Anpassungen nötig.
+- **Rocky 10** hat den Root-Account standardmäßig deaktiviert – das Script nutzt sowieso einen sudo-fähigen User.
+
+### Ubuntu 24.04+ (Debian-Familie)
+
+- **SSH Socket-Activation**: `ssh.socket` lauscht auf Port 22 und startet `ssh.service` bei Bedarf. Das Script enabled beides.
+- **UFW** ist häufig installiert aber inaktiv – das Script öffnet Port 22 nur, falls UFW tatsächlich aktiv ist.
+
 ## Logging
 
-Alle Aktionen werden in `/var/log/setup-ubuntu-vm.log` protokolliert.
+Alle Aktionen werden in `/var/log/setup-linux-vm.log` protokolliert.
 
 ## Idempotenz
 
-Das Script kann mehrfach ausgeführt werden. Originale von `/etc/environment` und `/etc/wgetrc` werden beim ersten Lauf als `.orig` gesichert; Proxy-Einträge werden vor dem Schreiben entfernt.
+Das Script kann mehrfach ausgeführt werden. Originale von `/etc/environment`, `/etc/wgetrc` und `/etc/dnf/dnf.conf` werden beim ersten Lauf als `.orig` gesichert. Proxy-Einträge werden vor dem Schreiben entfernt, sodass keine Duplikate entstehen.
 
 ## Nach dem Lauf
 
@@ -174,43 +179,35 @@ hostname -I
 # Per SSH vom Host verbinden
 ssh <benutzer>@<vm-ip>
 
-# Status der Dienste
+# Status der Dienste (Ubuntu)
 systemctl status ssh ssh.socket open-vm-tools
+
+# Status der Dienste (Rocky/Fedora)
+systemctl status sshd vmtoolsd
 ```
 
-### SSH-Hinweise
+### SSH-Härtung
 
-Ubuntu 24.04 aktiviert SSH per **Socket-Activation**. `ssh.socket` lauscht auf Port 22 und startet `ssh.service` beim ersten Connect. Der Self-Test akzeptiert deshalb beide Zustände als "aktiv".
-
-Standardmäßig ist `PasswordAuthentication yes` aktiv – der Self-Test meldet den Status. Für höhere Sicherheit empfiehlt sich nach dem ersten Login der Umstieg auf SSH-Keys:
+Nach dem ersten Login Umstieg auf SSH-Keys empfohlen:
 
 ```bash
-# auf dem Host:
+# vom Host:
 ssh-copy-id <benutzer>@<vm-ip>
 
 # auf der VM:
 sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-sudo systemctl restart ssh
+# Ubuntu (24.04+): ssh-Unit reicht, Socket-Activation startet beim nächsten Connect neu
+sudo systemctl restart ssh   # Ubuntu
+sudo systemctl restart sshd  # Rocky/Fedora
 ```
 
 ## Getestet mit
 
-| Ubuntu | Desktop | Server |
-|---|---|---|
-| 22.04 LTS (Jammy Jellyfish) | ✅ | ✅ |
-| 24.04 LTS (Noble Numbat) | ✅ | ✅ |
-| 26.04 LTS (Resolute Raccoon) | ✅ | ✅ |
-
+- Ubuntu 22.04 / 24.04 / 26.04 LTS (Desktop und Server)
+- Rocky Linux 9.7 / 10.1 (Workstation und Server)
+- Fedora 42 / 43 / 44 (Workstation und Server)
 - VMware Workstation 17
-- Squid als HTTP-Proxy (für automatisierte Tests)
-
-### Hinweise zu 26.04 LTS
-
-Ubuntu 26.04 LTS wurde am 23. April 2026 released und bringt unter anderem
-systemd 259 und Linux-Kernel 7.0 mit. Für dieses Script sind keine
-Anpassungen nötig – alle verwendeten Pfade (`/etc/environment`,
-`/etc/apt/apt.conf.d/`, `/etc/profile.d/`, `ssh.socket`-Activation) sind
-kompatibel.
+- Squid als HTTP-Proxy (automatisierte Tests)
 
 ## Lizenz
 
