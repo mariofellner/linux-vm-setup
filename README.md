@@ -1,6 +1,9 @@
 # ubuntu-vm-setup
 
-Initial-Setup-Script für eine frische **Ubuntu 24.04 Desktop**-VM in **VMware Workstation** hinter einem Corporate-Proxy.
+Initial-Setup-Script für eine frische **Ubuntu LTS**-VM in **VMware Workstation** hinter einem Corporate-Proxy.
+
+**Unterstützte Varianten:** Desktop und Server (werden automatisch erkannt).
+**Getestet mit:** Ubuntu 22.04, 24.04 und 26.04 LTS.
 
 ## Was macht das Script?
 
@@ -11,7 +14,9 @@ Initial-Setup-Script für eine frische **Ubuntu 24.04 Desktop**-VM in **VMware W
   - wget (`/etc/wgetrc`)
   - curl (`/root/.curlrc`)
   - snap (falls installiert)
-- Installiert **`open-vm-tools`** und **`open-vm-tools-desktop`** für saubere VMware-Integration (Copy-Paste, Ordner-Shares, Mouse-Grab, Shutdown aus dem Host, dynamisches Display-Resizing).
+- Installiert **`open-vm-tools`** für saubere VMware-Integration.
+  - **Desktop-Variante** zusätzlich **`open-vm-tools-desktop`** (Copy-Paste, Ordner-Shares, Mouse-Grab, Shutdown aus dem Host, dynamisches Display-Resizing).
+  - **Server-Variante** ohne `-desktop`-Paket (keine GUI-Abhängigkeiten).
 - Installiert und aktiviert **`openssh-server`** für Remote-Zugriff.
   - Aktiviert **`ssh.socket` UND `ssh.service`** (Ubuntu 24.04 nutzt Socket-Activation).
 - Öffnet Port 22 in `ufw`, falls UFW aktiv ist.
@@ -25,9 +30,81 @@ Initial-Setup-Script für eine frische **Ubuntu 24.04 Desktop**-VM in **VMware W
 
 ## Voraussetzungen
 
-- Ubuntu 24.04 Desktop (frisch installiert)
+- Ubuntu 22.04, 24.04 oder 26.04 LTS (Desktop **oder** Server; frisch installiert)
 - sudo-fähiger Benutzer
 - Erreichbarer HTTP/HTTPS-Proxy
+
+## Desktop oder Server? (Autodetect)
+
+Das Script erkennt die Variante automatisch:
+
+1. `systemctl get-default` → `graphical.target` = Desktop, sonst Server
+2. Alternativ: ist `ubuntu-desktop` oder `ubuntu-desktop-minimal` installiert? → Desktop
+
+Falls die Erkennung falsch liegt oder du sie überschreiben willst:
+
+```bash
+sudo ./setup-ubuntu-vm.sh --server      # erzwinge Server-Variante
+sudo ./setup-ubuntu-vm.sh --desktop     # erzwinge Desktop-Variante
+```
+
+Der einzige Unterschied: auf **Desktop** wird zusätzlich `open-vm-tools-desktop`
+installiert (GUI-Integration), auf **Server** nicht (keine X11/GUI-Abhängigkeiten).
+
+## Script holen und ausführbar machen
+
+Je nachdem, wie du das Script auf die VM bekommst, fehlt ggf. das Execute-Bit.
+Bei **ZIP-Download von GitHub** (grüner "Code"-Button → "Download ZIP")
+gehen Unix-Dateirechte immer verloren – das Script wird nach dem Entpacken
+nicht direkt startbar sein. Typische Fehlermeldung:
+
+```
+sudo: ./setup-ubuntu-vm.sh: command not found
+```
+
+### Variante A: Git clone (empfohlen)
+
+Beim Klonen via `git` bleiben die Dateirechte inkl. Execute-Bit erhalten:
+
+```bash
+# Einmalig apt + git über den Proxy bereitstellen (falls git fehlt):
+sudo apt update && sudo apt install -y git
+
+git clone https://github.com/mariofellner/ubuntu-vm-setup.git
+cd ubuntu-vm-setup
+sudo ./setup-ubuntu-vm.sh
+```
+
+### Variante B: ZIP-Download – Execute-Bit nachsetzen
+
+```bash
+cd ~/Downloads/ubuntu-vm-setup-main     # oder wo du entpackt hast
+chmod +x setup-ubuntu-vm.sh
+sudo ./setup-ubuntu-vm.sh
+```
+
+### Variante C: Ohne Execute-Bit – direkt mit bash starten
+
+Funktioniert immer, auch ohne `chmod`:
+
+```bash
+sudo bash setup-ubuntu-vm.sh
+```
+
+### Windows-Zeilenendings?
+
+Falls das Script über Windows/OneDrive/Teams auf die VM kam und beim Start
+folgender Fehler erscheint:
+
+```
+/usr/bin/env: 'bash\r': No such file or directory
+```
+
+dann sind CRLF-Line-Endings schuld. Einmalig beheben mit:
+
+```bash
+sed -i 's/\r$//' setup-ubuntu-vm.sh
+```
 
 ## Verwendung
 
@@ -75,6 +152,8 @@ sudo ./setup-ubuntu-vm.sh --skip-proxy
 | `--pass <pw>` | Proxy-Passwort (optional, wird URL-encoded) |
 | `--no-proxy <liste>` | Komma-Liste für `NO_PROXY` |
 | `--skip-proxy` | Proxy-Konfiguration überspringen |
+| `--server` | Als Server behandeln (kein `open-vm-tools-desktop`) |
+| `--desktop` | Als Desktop behandeln (mit `open-vm-tools-desktop`) |
 | `-y`, `--yes` | Alle Rückfragen mit Ja beantworten |
 | `-h`, `--help` | Hilfe anzeigen |
 
@@ -116,9 +195,22 @@ sudo systemctl restart ssh
 
 ## Getestet mit
 
-- Ubuntu 24.04.x Desktop LTS
+| Ubuntu | Desktop | Server |
+|---|---|---|
+| 22.04 LTS (Jammy Jellyfish) | ✅ | ✅ |
+| 24.04 LTS (Noble Numbat) | ✅ | ✅ |
+| 26.04 LTS (Resolute Raccoon) | ✅ | ✅ |
+
 - VMware Workstation 17
-- Squid als HTTP-Proxy (Test)
+- Squid als HTTP-Proxy (für automatisierte Tests)
+
+### Hinweise zu 26.04 LTS
+
+Ubuntu 26.04 LTS wurde am 23. April 2026 released und bringt unter anderem
+systemd 259 und Linux-Kernel 7.0 mit. Für dieses Script sind keine
+Anpassungen nötig – alle verwendeten Pfade (`/etc/environment`,
+`/etc/apt/apt.conf.d/`, `/etc/profile.d/`, `ssh.socket`-Activation) sind
+kompatibel.
 
 ## Lizenz
 
